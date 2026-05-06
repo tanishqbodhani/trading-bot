@@ -14,14 +14,21 @@ const API_SECRET = "YOUR_TESTNET_SECRET";
 // Testnet base URL
 const BASE_URL = "https://testnet-api.delta.exchange";
 
-// ⚠️ IMPORTANT: UPDATE THIS AFTER FETCHING FROM API
+// ⚠️ UPDATE THIS AFTER FETCHING
 const PRODUCT_ID = 0; // ETHUSD PERPETUAL ID
+
+// ===============================
+// ⚙️ STRATEGY CONFIG
+// ===============================
+const ALLOWED_SYMBOL = "ETHUSD";
+const ALLOWED_TF = ["15s", "1h"];
 
 // ===============================
 // ⚙️ STATE CONTROL
 // ===============================
 let isTradingEnabled = true;
 let lastAction = null;
+let currentPosition = "NONE"; // NONE | LONG | SHORT
 
 // ===============================
 // 🧪 HEALTH CHECK
@@ -63,19 +70,19 @@ async function getPrice() {
 }
 
 // ===============================
-// 🚀 PLACE ORDER (TESTNET)
+// 🚀 PLACE ORDER
 // ===============================
 async function placeOrder(side) {
     const path = "/v2/orders";
     const method = "POST";
     const timestamp = Date.now().toString();
 
-    const size = 0.01; // KEEP SMALL
+    const size = 0.01;
 
     const body = {
         product_id: PRODUCT_ID,
         size: size,
-        side: side, // "buy" or "sell"
+        side: side,
         order_type: "market"
     };
 
@@ -94,6 +101,24 @@ async function placeOrder(side) {
     } catch (err) {
         console.log("ORDER ERROR:", err.response?.data || err.message);
     }
+}
+
+// ===============================
+// ❌ CLOSE POSITION
+// ===============================
+async function closePosition() {
+    if (currentPosition === "NONE") {
+        console.log("No position to close");
+        return;
+    }
+
+    const side = currentPosition === "LONG" ? "sell" : "buy";
+
+    console.log("Closing position:", currentPosition);
+
+    await placeOrder(side);
+
+    currentPosition = "NONE";
 }
 
 // ===============================
@@ -116,31 +141,59 @@ app.post("/webhook", async (req, res) => {
 
     console.log("Incoming Data:", req.body);
 
-    const { action, symbol, tf } = req.body;
+    // 🔥 NEW STRUCTURED INPUT
+    const { event, side, symbol, tf } = req.body;
 
-    // ✅ STRICT FILTER: ETHUSD + 15s ONLY
-   const ALLOWED_TF = ["15s", "1h"];
-
-if (symbol !== ALLOWED_SYMBOL || !ALLOWED_TF.includes(tf)) {
-    return res.send("Ignored");
-}
-
-    // ✅ DUPLICATE FILTER
-    if (action === lastAction) {
-        console.log("Duplicate signal ignored");
-        return res.send("Duplicate");
-    }
-    lastAction = action;
-
-    // ✅ EXECUTION
-    if (action === "BUY") {
-        console.log("Executing BUY");
-        await placeOrder("buy");
+    // ===============================
+    // ✅ FILTER (SYMBOL + TF)
+    // ===============================
+    if (symbol !== ALLOWED_SYMBOL || !ALLOWED_TF.includes(tf)) {
+        console.log(`Ignored: ${symbol} ${tf}`);
+        return res.send("Ignored");
     }
 
-    if (action === "SELL") {
-        console.log("Executing SELL");
-        await placeOrder("sell");
+    console.log("Allowed TF:", ALLOWED_TF, "| Incoming TF:", tf);
+
+    // ===============================
+    // 🚀 ENTRY LOGIC
+    // ===============================
+    if (event === "ENTRY") {
+
+        if (side === "LONG" && currentPosition !== "LONG") {
+            console.log("Entering LONG");
+            await placeOrder("buy");
+            currentPosition = "LONG";
+        }
+
+        else if (side === "SHORT" && currentPosition !== "SHORT") {
+            console.log("Entering SHORT");
+            await placeOrder("sell");
+            currentPosition = "SHORT";
+        }
+
+        else {
+            console.log("Duplicate / same position ignored");
+        }
+    }
+
+    // ===============================
+    // 🛑 EXIT LOGIC
+    // ===============================
+    if (event === "EXIT") {
+
+        if (side === "LONG" && currentPosition === "LONG") {
+            console.log("Exiting LONG");
+            await closePosition();
+        }
+
+        else if (side === "SHORT" && currentPosition === "SHORT") {
+            console.log("Exiting SHORT");
+            await closePosition();
+        }
+
+        else {
+            console.log("No matching position to exit");
+        }
     }
 
     res.send("OK");
