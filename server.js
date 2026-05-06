@@ -119,10 +119,11 @@ app.post("/webhook", async (req, res) => {
     const { action, symbol, tf } = req.body;
 
     // ✅ STRICT FILTER: ETHUSD + 15s ONLY
-    if (symbol !== "ETHUSD" || tf !== "15s") {
-        console.log("Ignored: Not ETHUSD or not 15s");
-        return res.send("Ignored");
-    }
+   const ALLOWED_TF = ["15s", "1h"];
+
+if (symbol !== ALLOWED_SYMBOL || !ALLOWED_TF.includes(tf)) {
+    return res.send("Ignored");
+}
 
     // ✅ DUPLICATE FILTER
     if (action === lastAction) {
