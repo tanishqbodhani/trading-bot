@@ -3,7 +3,10 @@ const axios = require("axios");
 const crypto = require("crypto");
 
 const app = express();
-app.use(express.json());
+
+// 🔥 FIX: Tell Express to accept plain text, which we will parse manually below
+app.use(express.text({ type: '*/*' }));
+app.use(express.json()); // Keep this as a fallback for standard JSON tools like Postman
 
 // ===============================
 // 🔐 CONFIG (PUT YOUR KEYS HERE)
@@ -139,10 +142,25 @@ app.post("/webhook", async (req, res) => {
         return res.send("Paused");
     }
 
-    console.log("Incoming Data:", req.body);
+    // 🔥 FIX: Safely parse the incoming text into JSON
+    let data = req.body;
+    if (typeof req.body === 'string') {
+        try {
+            // Check if the string is completely empty
+            if (!req.body.trim()) {
+                console.log("Ignored: Empty Webhook Body Received");
+                return res.send("Empty Body");
+            }
+            data = JSON.parse(req.body);
+        } catch (error) {
+            console.log("JSON Parse Error. Raw Data received:", req.body);
+            return res.status(400).send("Invalid JSON format");
+        }
+    }
 
-    // 🔥 NEW STRUCTURED INPUT
-    const { event, side, symbol, tf } = req.body;
+    console.log("Incoming Data:", data);
+
+    const { event, side, symbol, tf } = data;
 
     // ===============================
     // ✅ FILTER (SYMBOL + TF)
