@@ -158,24 +158,31 @@ async function closePosition() {
 }
 
 // ===============================
-// 🔍 FETCH PRODUCT ID
+// ===============================
+// 🔍 FIND SPECIFIC PRODUCT ID
 // ===============================
 app.get("/get-product", async (req, res) => {
-
     try {
+        const response = await axios.get(BASE_URL + "/v2/products");
+        const allProducts = response.data.result;
 
-        const response =
-            await axios.get(
-                BASE_URL + "/v2/products"
-            );
+        // Command the server to filter the array for ETHUSD
+        const targetProduct = allProducts.find(product => product.symbol === "ETHUSD");
 
-        res.json(response.data.result);
-
+        if (targetProduct) {
+            res.send(`
+                <h2>Target Acquired 🎯</h2>
+                <p><strong>Symbol:</strong> ${targetProduct.symbol}</p>
+                <p><strong>Product ID:</strong> <span style="color:red; font-size:24px;">${targetProduct.id}</span></p>
+                <p>Copy that red number and paste it into your PRODUCT_ID variable!</p>
+            `);
+        } else {
+            res.send("Could not find ETHUSD in the product list.");
+        }
     } catch (err) {
-
-        res.send(err.message);
+        res.status(500).send("Failed to fetch products from Delta Exchange");
     }
-});
+};
 
 // ===============================
 // 📥 WEBHOOK
