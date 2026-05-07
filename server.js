@@ -20,7 +20,7 @@ const API_SECRET = "uz6e0yNnkp0bkOZb8kx8d3yBWVPrlBRkZFAr1OraQUdSvj4GfHt6ahWlVPhu
 const BASE_URL = "https://testnet-api.delta.exchange";
 
 // ⚠️ UPDATE THIS AFTER FETCHING PRODUCT ID
-const PRODUCT_ID = 0;
+const PRODUCT_ID = 1699;
 
 // ===============================
 // ⚙️ STRATEGY SETTINGS
