@@ -13,8 +13,9 @@ app.use(express.json());
 // ===============================
 // 🔐 DELTA TESTNET CONFIG
 // ===============================
-const API_KEY = "PASTE_TESTNET_API_KEY";
-const API_SECRET = "PASTE_TESTNET_API_SECRET";
+const API_KEY = "chjvEFJTf9mIjEZzEH9v9GblswbekF";
+const API_SECRET = "uz6e0yNnkp0bkOZb8kx8d3yBWVPrlBRkZFAr1OraQUdSvj4GfHt6ahWlVPhu";
+
 
 const BASE_URL = "https://testnet-api.delta.exchange";
 
