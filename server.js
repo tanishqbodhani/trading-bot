@@ -160,31 +160,40 @@ async function closePosition() {
 // ===============================
 // ===============================
 // ===============================
-// 🔍 FIND SPECIFIC PRODUCT ID
+// ===============================
+// 🔍 FIND SPECIFIC PRODUCT ID (WIDER SEARCH)
 // ===============================
 app.get("/get-product", async (req, res) => {
     try {
         const response = await axios.get(BASE_URL + "/v2/products");
         const allProducts = response.data.result;
 
-        // Command the server to filter the array for ETHUSD
-        const targetProduct = allProducts.find(product => product.symbol === "ETHUSD");
+        // Command the server to find ALL products that include "ETH" in their symbol
+        const ethProducts = allProducts.filter(product => 
+            product.symbol && product.symbol.includes("ETH")
+        );
 
-        if (targetProduct) {
-            res.send(`
-                <h2>Target Acquired 🎯</h2>
-                <p><strong>Symbol:</strong> ${targetProduct.symbol}</p>
-                <p><strong>Product ID:</strong> <span style="color:red; font-size:24px;">${targetProduct.id}</span></p>
-                <p>Copy that red number and paste it into your PRODUCT_ID variable!</p>
-            `);
+        if (ethProducts.length > 0) {
+            let html = `<h2>Found ${ethProducts.length} ETH Products 🎯</h2><ul>`;
+            
+            // Loop through the results and list them out
+            ethProducts.forEach(p => {
+                html += `<li style="margin-bottom: 10px;">
+                            <strong>Symbol:</strong> ${p.symbol} <br>
+                            <strong>Product ID:</strong> <span style="color:red; font-size:20px;">${p.id}</span> <br>
+                            <strong>Type:</strong> ${p.contract_type || 'Unknown'}
+                         </li>`;
+            });
+            
+            html += `</ul><p>Look for the one where Type is "perpetual_futures" (or similar) that matches what you are trading, and copy its red ID!</p>`;
+            res.send(html);
         } else {
-            res.send("Could not find ETHUSD in the product list.");
+            res.send("Still could not find anything containing 'ETH' in the product list.");
         }
     } catch (err) {
         res.status(500).send("Failed to fetch products from Delta Exchange");
     }
-});
-// ===============================
+});// ===============================
 // 📥 WEBHOOK
 // ===============================
 app.post("/webhook", async (req, res) => {
