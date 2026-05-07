@@ -159,6 +159,7 @@ async function closePosition() {
 
 // ===============================
 // ===============================
+// ===============================
 // 🔍 FIND SPECIFIC PRODUCT ID
 // ===============================
 app.get("/get-product", async (req, res) => {
@@ -182,8 +183,7 @@ app.get("/get-product", async (req, res) => {
     } catch (err) {
         res.status(500).send("Failed to fetch products from Delta Exchange");
     }
-};
-
+});
 // ===============================
 // 📥 WEBHOOK
 // ===============================
