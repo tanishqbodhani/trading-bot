@@ -4,89 +4,72 @@ const crypto = require("crypto");
 
 const app = express();
 
-// ===============================
-// 🔥 ACCEPT RAW WEBHOOK DATA
-// ===============================
-app.use(express.text({ type: "*/*" }));
+// =====================================
+// JSON BODY ONLY
+// =====================================
 app.use(express.json());
 
-// ===============================
-// 🔐 DELTA TESTNET CONFIG
-// ===============================
-const API_KEY = process.env.API_KEY;
-const API_SECRET = process.env.API_SECRET;
+// =====================================
+// CONFIG
+// =====================================
+const API_KEY = "MGXIlKx3GgbXX0W9Z6ET5DzV7EmVVz";
+const API_SECRET = "s8jHpB8GGD0BYpmlS7NPceVYOgHcPss99LxrxEVWbOml6W6uLbyOe89d1e72";
 
+const BASE_URL =
+    "https://testnet-api.delta.exchange";
 
-const BASE_URL = "https://testnet-api.delta.exchange";
-
-// ⚠️ UPDATE THIS AFTER FETCHING PRODUCT ID
 const PRODUCT_ID = 1699;
-
-// ===============================
-// ⚙️ STRATEGY SETTINGS
-// ===============================
-const ALLOWED_SYMBOL = "ETHUSD";
-const ALLOWED_TF = ["15s", "1h"];
 
 const ORDER_SIZE = 0.01;
 
-// ===============================
-// ⚙️ STATE
-// ===============================
-let isTradingEnabled = true;
+const SYMBOL = "ETHUSD";
+
+const ALLOWED_TF = ["15s", "1h"];
+
+// =====================================
+// STATE
+// =====================================
 let currentPosition = "NONE";
 
-// ===============================
-// 🧪 HEALTH CHECK
-// ===============================
+// =====================================
+// HEALTH CHECK
+// =====================================
 app.get("/", (req, res) => {
-    res.send("Server Running");
+    res.send("Bot Running");
 });
 
-// ===============================
-// ⏸️ PAUSE
-// ===============================
-app.get("/pause", (req, res) => {
-    isTradingEnabled = false;
-    console.log("Trading Paused");
-    res.send("Trading Paused");
-});
+// =====================================
+// SIGNATURE
+// =====================================
+function generateSignature(
+    method,
+    timestamp,
+    path,
+    body
+) {
 
-// ===============================
-// ▶️ RESUME
-// ===============================
-app.get("/resume", (req, res) => {
-    isTradingEnabled = true;
-    console.log("Trading Resumed");
-    res.send("Trading Resumed");
-});
-
-// ===============================
-// 🔐 GENERATE SIGNATURE
-// ===============================
-function generateSignature(path, method, body, timestamp) {
-
-    const message =
+    const payload =
         method +
         timestamp +
         path +
         JSON.stringify(body);
 
     return crypto
-        .createHmac("sha256", API_SECRET)
-        .update(message)
+        .createHmac(
+            "sha256",
+            API_SECRET
+        )
+        .update(payload)
         .digest("hex");
 }
 
-// ===============================
-// 🚀 PLACE ORDER
-// ===============================
+// =====================================
+// PLACE ORDER
+// =====================================
 async function placeOrder(side) {
 
     const path = "/v2/orders";
-    const method = "POST";
 
-    // ✅ FIXED TIMESTAMP
     const timestamp =
         Math.floor(Date.now() / 1000).toString();
 
@@ -99,253 +82,187 @@ async function placeOrder(side) {
 
     const signature =
         generateSignature(
+            "POST",
+            timestamp,
             path,
-            method,
-            body,
-            timestamp
+            body
         );
 
     try {
 
-        const response = await axios.post(
-            BASE_URL + path,
-            body,
-            {
-                headers: {
-                    "api-key": API_KEY,
-                    "timestamp": timestamp,
-                    "signature": signature
+        const response =
+            await axios.post(
+                BASE_URL + path,
+                body,
+                {
+                    headers: {
+                        "api-key": API_KEY,
+                        "timestamp": timestamp,
+                        "signature": signature,
+                        "Content-Type":
+                            "application/json"
+                    }
                 }
-            }
-        );
-
-        console.log("ORDER SUCCESS:");
-        console.log(response.data);
-
-    } catch (err) {
-
-        console.log("ORDER ERROR:");
-
-        if (err.response?.data) {
-            console.log(err.response.data);
-        } else {
-            console.log(err.message);
-        }
-    }
-}
-
-// ===============================
-// ❌ CLOSE POSITION
-// ===============================
-async function closePosition() {
-
-    if (currentPosition === "NONE") {
-
-        console.log("No position to close");
-        return;
-    }
-
-    const side =
-        currentPosition === "LONG"
-            ? "sell"
-            : "buy";
-
-    console.log("Closing:", currentPosition);
-
-    await placeOrder(side);
-
-    currentPosition = "NONE";
-}
-
-// ===============================
-// ===============================
-// ===============================
-// ===============================
-// 🔍 FIND SPECIFIC PRODUCT ID (WIDER SEARCH)
-// ===============================
-app.get("/get-product", async (req, res) => {
-    try {
-        const response = await axios.get(BASE_URL + "/v2/products");
-        const allProducts = response.data.result;
-
-        // Command the server to find ALL products that include "ETH" in their symbol
-        const ethProducts = allProducts.filter(product => 
-            product.symbol && product.symbol.includes("ETH")
-        );
-
-        if (ethProducts.length > 0) {
-            let html = `<h2>Found ${ethProducts.length} ETH Products 🎯</h2><ul>`;
-            
-            // Loop through the results and list them out
-            ethProducts.forEach(p => {
-                html += `<li style="margin-bottom: 10px;">
-                            <strong>Symbol:</strong> ${p.symbol} <br>
-                            <strong>Product ID:</strong> <span style="color:red; font-size:20px;">${p.id}</span> <br>
-                            <strong>Type:</strong> ${p.contract_type || 'Unknown'}
-                         </li>`;
-            });
-            
-            html += `</ul><p>Look for the one where Type is "perpetual_futures" (or similar) that matches what you are trading, and copy its red ID!</p>`;
-            res.send(html);
-        } else {
-            res.send("Still could not find anything containing 'ETH' in the product list.");
-        }
-    } catch (err) {
-        res.status(500).send("Failed to fetch products from Delta Exchange");
-    }
-});// ===============================
-// 📥 WEBHOOK
-// ===============================
-app.post("/webhook", async (req, res) => {
-
-    if (!isTradingEnabled) {
-
-        console.log("Trading paused");
-        return res.send("Paused");
-    }
-
-    let data = req.body;
-
-    // ===============================
-    // 🔥 SAFE JSON PARSE
-    // ===============================
-    if (typeof req.body === "string") {
-
-        try {
-
-            if (!req.body.trim()) {
-
-                console.log(
-                    "Ignored: Empty Webhook"
-                );
-
-                return res.send("Empty");
-            }
-
-            data = JSON.parse(req.body);
-
-        } catch (error) {
-
-            console.log(
-                "JSON Parse Error:"
             );
-
-            console.log(req.body);
-
-            return res
-                .status(400)
-                .send("Invalid JSON");
-        }
-    }
-
-    console.log("Incoming Data:");
-    console.log(data);
-
-    const {
-        event,
-        side,
-        symbol,
-        tf
-    } = data;
-
-    // ===============================
-    // ✅ FILTER
-    // ===============================
-    if (
-        symbol !== ALLOWED_SYMBOL ||
-        !ALLOWED_TF.includes(tf)
-    ) {
 
         console.log(
-            `Ignored: ${symbol} ${tf}`
+            "ORDER SUCCESS"
         );
 
-        return res.send("Ignored");
+        console.log(
+            response.data
+        );
+
+    } catch (err) {
+
+        console.log(
+            "ORDER FAILED"
+        );
+
+        console.log(
+            err.response?.data ||
+            err.message
+        );
     }
+}
 
-    // ===============================
-    // 🚀 ENTRY
-    // ===============================
-    if (event === "ENTRY") {
+// =====================================
+// WEBHOOK
+// =====================================
+app.post(
+    "/webhook",
+    async (req, res) => {
 
-        // LONG
+        console.log(
+            "Webhook Received:"
+        );
+
+        console.log(req.body);
+
+        const {
+            event,
+            side,
+            symbol,
+            tf
+        } = req.body;
+
+        // ============================
+        // FILTER
+        // ============================
         if (
-            side === "LONG" &&
-            currentPosition !== "LONG"
+            symbol !== SYMBOL ||
+            !ALLOWED_TF.includes(tf)
         ) {
-
-            console.log("Entering LONG");
-
-            await placeOrder("buy");
-
-            currentPosition = "LONG";
-        }
-
-        // SHORT
-        else if (
-            side === "SHORT" &&
-            currentPosition !== "SHORT"
-        ) {
-
-            console.log("Entering SHORT");
-
-            await placeOrder("sell");
-
-            currentPosition = "SHORT";
-        }
-
-        else {
 
             console.log(
-                "Duplicate ignored"
+                "Ignored"
+            );
+
+            return res.send(
+                "Ignored"
             );
         }
+
+        // ============================
+        // ENTRY
+        // ============================
+        if (event === "ENTRY") {
+
+            // LONG
+            if (
+                side === "LONG" &&
+                currentPosition !== "LONG"
+            ) {
+
+                console.log(
+                    "OPEN LONG"
+                );
+
+                await placeOrder(
+                    "buy"
+                );
+
+                currentPosition =
+                    "LONG";
+            }
+
+            // SHORT
+            else if (
+                side === "SHORT" &&
+                currentPosition !== "SHORT"
+            ) {
+
+                console.log(
+                    "OPEN SHORT"
+                );
+
+                await placeOrder(
+                    "sell"
+                );
+
+                currentPosition =
+                    "SHORT";
+            }
+        }
+
+        // ============================
+        // EXIT
+        // ============================
+        if (event === "EXIT") {
+
+            // EXIT LONG
+            if (
+                side === "LONG" &&
+                currentPosition === "LONG"
+            ) {
+
+                console.log(
+                    "CLOSE LONG"
+                );
+
+                await placeOrder(
+                    "sell"
+                );
+
+                currentPosition =
+                    "NONE";
+            }
+
+            // EXIT SHORT
+            else if (
+                side === "SHORT" &&
+                currentPosition === "SHORT"
+            ) {
+
+                console.log(
+                    "CLOSE SHORT"
+                );
+
+                await placeOrder(
+                    "buy"
+                );
+
+                currentPosition =
+                    "NONE";
+            }
+        }
+
+        res.send("OK");
     }
+);
 
-    // ===============================
-    // 🛑 EXIT
-    // ===============================
-    if (event === "EXIT") {
+// =====================================
+// START SERVER
+// =====================================
+const PORT = process.env.PORT || 3000;
 
-        // EXIT LONG
-        if (
-            side === "LONG" &&
-            currentPosition === "LONG"
-        ) {
+app.listen(PORT, () => {
+    console.log(`Running on ${PORT}`);
+});,
+    () => {
 
-            console.log("Exiting LONG");
-
-            await closePosition();
-        }
-
-        // EXIT SHORT
-        else if (
-            side === "SHORT" &&
-            currentPosition === "SHORT"
-        ) {
-
-            console.log("Exiting SHORT");
-
-            await closePosition();
-        }
-
-        else {
-
-            console.log(
-                "No matching position"
-            );
-        }
+        console.log(
+            "Server Running"
+        );
     }
-
-    res.send("OK");
-});
-
-// ===============================
-// ▶️ START SERVER
-// ===============================
-app.listen(3000, () => {
-
-    console.log(
-        "Server running on port 3000"
-    );
-});
+);
